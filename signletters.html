@@ -1,0 +1,189 @@
+<html>
+<head><!--Script and design by Duncan Johnson-->
+<title>Sign Letters</title>
+<style>
+/* Hide screen elements for printout */
+@media print {
+  #hide {
+    display:none;
+  }
+}
+
+/* Hide printer elements for screen */
+@media screen {
+  .print {
+    display:none;
+  } 
+}
+</style>
+<script src="inventory.js"></script>
+<script language="JavaScript">
+  var mode;
+
+  function writeContents(callingElement,paragraphID) {
+    document.getElementById(paragraphID).innerHTML = callingElement.value;
+  }
+
+  function showInventory() {
+    document.getElementById("output").innerHTML = renderArray(inventory,"inventory")
+  }
+  
+///set value of mode variable
+  function setMode(selector) {
+    var success = true;
+    if (selector.value != "") { 
+      mode = parseInt(selector.value);
+      if (mode == 1) {
+        document.getElementById("second").style.display = "table-row";
+      } else {
+        document.getElementById("second").style.display = "none";
+        document.getElementById("newText2").value = "";
+        document.getElementById("oldText2").value = "";
+      }
+    } else {
+      success = false;
+      alert("Please select a mode before continuing.");
+    }
+    return success;
+  }
+  
+///clean up
+  function wipeOutput() {
+    document.getElementById("output").innerHTML = ""
+    return true
+  }
+  
+///Count occurrences of letter in phrase
+  function countLetters(inputArray) {
+    var output = new Array();
+    for (var i = 0; i < inputArray.length; i++) {
+      var letter = inputArray[i];
+      if (isNaN(output[letter])) {
+        output[letter] = mode; //since sign has 2 sides, 2 copies necessary
+      } else {
+        output[letter] = output[letter] + mode; //since sign has 2 sides, 2 copies necessary
+      }
+    }
+    return output;
+  }
+  
+///write array to HTML table
+  function renderArray(array,headerString) {
+    var result = "<table border='1'><tr><th colspan='2'>" + headerString + "</th></tr>"
+    result += "<tr><td>Letter</td><td>Count</td></tr>";
+    for (var item in array) {
+      result += "<tr><td>" + item + "</td><td>" + array[item] + "</td></tr>";
+    }
+    result += "</table>"
+    return result;
+  }
+  
+///check for excess
+  function isExcess(excess,newSums) {
+    var found = false;
+    for (var item in newSums) {
+      if (!isNaN(excess[item])) {
+        found = true;
+      }
+    }
+    return found;
+  }
+  
+///algorithm
+  function calculateLetters(form) {
+    var newText = form.newText.value.toUpperCase();
+    newText += form.newText2.value.toUpperCase();
+    var oldText = form.oldText.value.toUpperCase();
+    oldText += form.oldText2.value.toUpperCase();
+   
+   
+    wipeOutput();
+    
+    //remove spaces
+    newText = newText.replace(/ /g,"");
+    oldText = oldText.replace(/ /g,"");
+    
+    //replace zeros with "ohs" -- needed by MCBC
+    //newText = newText.replace(/0/g,"O");
+    //oldText = oldText.replace(/0/g,"O");
+    
+    //split into chars
+    var oldChars = oldText.split("");
+    var newChars = newText.split("");
+    
+    //sort chars
+    oldChars = oldChars.sort();
+    newChars = newChars.sort();
+    
+    //create dictionary of letter counts
+    var oldSums = countLetters(oldChars);
+    var newSums = countLetters(newChars);
+   
+    //perform arithmetic (newLetterCount-oldLetterCount) 
+    var lettersNeeded = new Array();
+    var lettersToReturn = new Array();
+    for (var item in newSums) {
+      if (!isNaN(oldSums[item])) {
+        var sum = newSums[item] - oldSums[item]
+        if (sum > 0) { lettersNeeded[item] = sum; }//if positive more letters needed
+        else if (sum < 0) {lettersToReturn[item] = sum * -1;}//if negative some letters need to be returned
+      } else {
+        lettersNeeded[item] = newSums[item];
+      }
+    }
+    for (var item in oldSums) { //catch letters from old phrase not in new phrase
+      if (isNaN(newSums[item])) {
+        lettersToReturn[item] = oldSums[item];
+      }
+    }
+   
+   var excess = new Array()
+   //Check against inventory
+   for (var item in newSums) {
+    if (inventory[item]==undefined) { //if letter not in inventory add all to excess, move this earlier to prevent insertion as a needed letter
+      excess[item] = newSums[item];
+      lettersNeeded[item] = "None in inventory. Substitute another letter";
+    } else if (newSums[item] > inventory[item]) {
+      excess[item] = newSums[item] - inventory[item];
+    }
+   }
+   
+    //render results
+    var output = "<table border='0'><tr><td>" + renderArray(lettersNeeded,"Extra Letters Needed") + "</td><td>" + renderArray(lettersToReturn,"Unneeded Letters to Store") + "</td>";
+    if (isExcess(excess,newSums)) {
+      output += "<td>" + renderArray(excess,"excess") + "</td></tr></table>"
+    }
+    document.getElementById("output").innerHTML = output;
+    
+    return false; // do not allow form submission to proceed
+  }
+</script></head>
+<body>
+  <h1>Sign Letters</h1>
+  <form method="post" onsubmit="setMode(this.mode); return calculateLetters(this)" onreset="return wipeOutput()">
+    <div id="hide"><select name="mode" id="mode" size="2" onclick="return setMode(this)">
+      <option value="1" selected="true">Two separate phrases</option>
+      <option value="2">One duplicated phrase</option>
+    </select></div>
+    <table border="0">
+      <tr><td>
+        <p><b>Current phrase</b> (driveway side):</p>
+        <div id="hide"><textarea id="oldText" name="oldText" rows="5" cols="35" onchange="writeContents(this,'oldPara');"></textarea></div><p id="oldPara" class="print"></p>
+      </td><td>
+        <p><b>New phrase</b> (driveway side):</p>
+        <div id="hide"><textarea id="newText" name="newText" rows="5" cols="35" onchange="writeContents(this,'newPara');"></textarea></div><p id="newPara" class="print"></p>
+      </td></tr>
+      <tr></tr>
+      <tr id="second"><td>
+        <p><b>Current phrase</b> (other side):</p>
+        <div id="hide"><textarea id="oldText2" name="oldText2" rows="5" cols="35" onchange="writeContents(this,'oldPara2');"></textarea></div><p id="oldPara2" class="print"></p>
+      </td><td>
+        <p><b>New phrase</b> (other side):</p>
+        <div id="hide"><textarea id="newText2" name="newText2" rows="5" cols="35" onchange="writeContents(this,'newPara2');"></textarea></div><p id="newPara2" class="print"></p>
+      </td></tr>
+    </table>
+    <div id="hide"><input type="submit" value="Calculate letter counts"/> <input type="reset"/> <a href="javascript:showInventory()">Show inventory</a></div>
+  </form>
+  <div id="output"></div>
+</body>
+</html>
